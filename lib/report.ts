@@ -1,5 +1,5 @@
 import type { Expense, Member, Project, Task } from "./types";
-import { disbursementRate, formatDate, isOverdue, todayISO } from "./format";
+import { disbursementRate, formatDate, isOverdue, projectBudget, todayISO } from "./format";
 
 export interface ProjectReport {
   project: Project;
@@ -18,7 +18,7 @@ export function buildReport(projects: Project[], tasks: Task[], expenses: Expens
     const ts = tasks.filter((t) => t.project_id === p.id);
     const es = expenses.filter((e) => e.project_id === p.id);
     const late = ts.filter((t) => isOverdue(t, today)).length;
-    const estimated = es.reduce((s, e) => s + e.estimated_amount, 0);
+    const estimated = projectBudget(p.total_budget, es.reduce((s, e) => s + e.estimated_amount, 0));
     const actual = es.reduce((s, e) => s + e.actual_amount, 0);
     return {
       project: p,
@@ -59,7 +59,7 @@ function projectSheet(rows: ProjectReport[]) {
     "Đúng hạn": r.onTime,
     "Trễ hạn": r.late,
     "Tiến độ TB (%)": round1(r.progress),
-    "Dự toán (VNĐ)": r.estimated,
+    "Ngân sách (VNĐ)": r.estimated,
     "Thực chi (VNĐ)": r.actual,
     "Tỷ lệ giải ngân (%)": round1(r.rate),
   }));
@@ -117,7 +117,7 @@ export async function exportExcel(
     ["Đầu việc đã hoàn thành", kpi.done],
     ["Đầu việc đúng hạn", kpi.onTime],
     ["Đầu việc trễ hạn", kpi.late],
-    ["Tổng dự toán (VNĐ)", kpi.estimated],
+    ["Tổng ngân sách (VNĐ)", kpi.estimated],
     ["Tổng thực chi (VNĐ)", kpi.actual],
     ["Tỷ lệ giải ngân (%)", round1(disbursementRate(kpi.actual, kpi.estimated))],
   ]);
@@ -145,7 +145,8 @@ export async function exportExcel(
   const es = XLSX.utils.json_to_sheet(
     expenses.map((e) => ({
       "Dự án": pname(e.project_id),
-      "Hạng mục": e.category,
+      "Hạng mục": e.item_name,
+      "Ngày chi": formatDate(e.spent_date),
       "Dự toán (VNĐ)": e.estimated_amount,
       "Thực chi (VNĐ)": e.actual_amount,
       "Chênh lệch (VNĐ)": e.estimated_amount - e.actual_amount,
@@ -154,7 +155,7 @@ export async function exportExcel(
       "Ghi chú": e.note ?? "",
     }))
   );
-  es["!cols"] = [{ wch: 28 }, { wch: 26 }, { wch: 16 }, { wch: 16 }, { wch: 17 }, { wch: 13 }, { wch: 9 }, { wch: 30 }];
+  es["!cols"] = [{ wch: 28 }, { wch: 26 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 17 }, { wch: 13 }, { wch: 9 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, es, "Ngân sách");
 
   XLSX.writeFile(wb, `bao-cao-tien-do-${today}.xlsx`);

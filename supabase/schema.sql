@@ -25,7 +25,8 @@ alter table public.projects add column if not exists name        text not null d
 alter table public.projects add column if not exists description text;
 alter table public.projects add column if not exists start_date  date;
 alter table public.projects add column if not exists end_date    date;
-alter table public.projects add column if not exists status      text not null default 'Đang thực hiện';
+alter table public.projects add column if not exists status      text default 'Đang triển khai';
+alter table public.projects add column if not exists total_budget numeric default 0;
 alter table public.projects add column if not exists created_at  timestamptz not null default now();
 
 -- ---------- tasks ----------
@@ -38,6 +39,7 @@ alter table public.tasks add column if not exists assignee_id uuid references pu
 alter table public.tasks add column if not exists start_date  date;
 alter table public.tasks add column if not exists due_date    date;
 alter table public.tasks add column if not exists progress    integer not null default 0;
+alter table public.tasks add column if not exists status      text default 'Cần làm';
 alter table public.tasks add column if not exists created_at  timestamptz not null default now();
 
 -- ---------- expenses (mỗi dòng = một hạng mục ngân sách) ----------
@@ -45,7 +47,9 @@ create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid()
 );
 alter table public.expenses add column if not exists project_id       uuid references public.projects(id) on delete cascade;
-alter table public.expenses add column if not exists category         text not null default 'Khác';
+alter table public.expenses add column if not exists item_name        text not null default 'Hạng mục';
+alter table public.expenses add column if not exists task_id          uuid references public.tasks(id) on delete set null;
+alter table public.expenses add column if not exists spent_date       date default current_date;
 alter table public.expenses add column if not exists estimated_amount numeric not null default 0;
 alter table public.expenses add column if not exists actual_amount    numeric not null default 0;
 alter table public.expenses add column if not exists approved         boolean not null default false;
@@ -158,7 +162,7 @@ begin
   if new.estimated_amount is distinct from old.estimated_amount
      or new.approved is distinct from old.approved
      or new.project_id is distinct from old.project_id
-     or new.category is distinct from old.category then
+     or new.item_name is distinct from old.item_name then
     raise exception 'Thành viên chỉ được nhập chi phí thực tế';
   end if;
   return new;

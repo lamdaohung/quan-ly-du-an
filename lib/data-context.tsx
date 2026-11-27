@@ -31,11 +31,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       supabase.from("projects").select("*").order("start_date", { ascending: true, nullsFirst: false }),
       supabase.from("members").select("*").order("full_name", { ascending: true }),
       supabase.from("tasks").select("*").order("start_date", { ascending: true, nullsFirst: false }),
-      supabase.from("expenses").select("*").order("category", { ascending: true }),
+      supabase.from("expenses").select("*").order("item_name", { ascending: true }),
     ]);
     const firstError = p.error ?? m.error ?? t.error ?? e.error;
     setError(firstError ? firstError.message : null);
-    setProjects((p.data ?? []) as Project[]);
+    setProjects(((p.data ?? []) as Project[]).map((x) => ({ ...x, total_budget: Number(x.total_budget ?? 0) })));
     setMembers(
       ((m.data ?? []) as Member[]).map((x) => ({
         ...x,

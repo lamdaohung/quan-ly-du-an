@@ -41,6 +41,15 @@ export function clampProgress(n: number) {
   return Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 }
 
+/**
+ * Ngân sách tổng của dự án: dùng projects.total_budget nếu Admin đã nhập (> 0),
+ * nếu chưa thì lấy tổng dự toán các hạng mục.
+ */
+export function projectBudget(totalBudget: number | null | undefined, itemsEstimated: number) {
+  const tb = Number(totalBudget ?? 0);
+  return tb > 0 ? tb : itemsEstimated;
+}
+
 /** Tỷ lệ giải ngân (%) */
 export function disbursementRate(actual: number, estimated: number) {
   if (!estimated) return actual > 0 ? 100 : 0;

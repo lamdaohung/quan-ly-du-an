@@ -56,11 +56,11 @@ Quyền được kiểm tra ở **giao diện** và ở **database** (Row Level 
 ## Cấu trúc cột mà ứng dụng sử dụng
 
 - `members`: `id, user_id, email, full_name, role`
-- `projects`: `id, name, description, start_date, end_date, status`
+- `projects`: `id, name, description, start_date, end_date, status, total_budget`
 - `tasks`: `id, project_id, title, assignee_id → members.id, start_date, due_date, progress (0–100)`
-- `expenses`: `id, project_id, category, estimated_amount, actual_amount, approved, note` (mỗi dòng là một hạng mục ngân sách)
+- `expenses`: `id, project_id, item_name, estimated_amount, actual_amount, spent_date, approved, note` (mỗi dòng là một hạng mục ngân sách)
 
-Tổng ngân sách của dự án được tính bằng tổng `estimated_amount` của các hạng mục.
+Ngân sách dự án = `projects.total_budget` nếu Admin đã nhập; nếu để trống thì bằng tổng `estimated_amount` của các hạng mục.
 Nếu bảng của bạn dùng tên cột khác, hãy sửa trong `lib/types.ts` và các câu truy vấn tương ứng.
 
 ## Cấu trúc thư mục

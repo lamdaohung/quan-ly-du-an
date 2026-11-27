@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const chartData = rows.map((r) => ({
     name: r.project.name.length > 18 ? r.project.name.slice(0, 17) + "…" : r.project.name,
     fullName: r.project.name,
-    "Dự toán": r.estimated,
+    "Ngân sách": r.estimated,
     "Thực chi": r.actual,
   }));
 
@@ -83,7 +83,7 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-sm font-semibold text-slate-900">So sánh ngân sách theo dự án</h2>
               <p className="text-xs text-slate-500">
-                Tổng dự toán {formatVND(kpi.estimated)} · Thực chi {formatVND(kpi.actual)} ({formatPercent(totalRate)})
+                Tổng ngân sách {formatVND(kpi.estimated)} · Thực chi {formatVND(kpi.actual)} ({formatPercent(totalRate)})
               </p>
             </div>
             <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setShowTable((v) => !v)}>
@@ -95,7 +95,7 @@ export default function DashboardPage() {
           ) : showTable ? (
             <table className="w-full">
               <thead className="bg-slate-50">
-                <tr><th className="th">Dự án</th><th className="th text-right">Dự toán</th><th className="th text-right">Thực chi</th></tr>
+                <tr><th className="th">Dự án</th><th className="th text-right">Ngân sách</th><th className="th text-right">Thực chi</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((r) => (
@@ -121,7 +121,7 @@ export default function DashboardPage() {
                     contentStyle={{ borderRadius: 8, borderColor: "#e2e8f0", fontSize: 13 }}
                   />
                   <Legend iconType="square" wrapperStyle={{ fontSize: 13, color: "#334155" }} />
-                  <Bar dataKey="Dự toán" fill={COLOR_EST} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                  <Bar dataKey="Ngân sách" fill={COLOR_EST} radius={[4, 4, 0, 0]} maxBarSize={36} />
                   <Bar dataKey="Thực chi" fill={COLOR_ACT} radius={[4, 4, 0, 0]} maxBarSize={36} />
                 </BarChart>
               </ResponsiveContainer>

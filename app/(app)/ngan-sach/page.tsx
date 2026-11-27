@@ -5,7 +5,9 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useData } from "@/lib/data-context";
 import type { Expense } from "@/lib/types";
-import { budgetLevel, disbursementRate, errorMessage, formatPercent, formatVND } from "@/lib/format";
+import { budgetLevel, disbursementRate, errorMessage, formatDate, formatPercent, formatVND, projectBudget, todayISO } from "@/lib/format";
+import { ProjectModal } from "@/components/forms";
+import type { Project } from "@/lib/types";
 import { BudgetBadge, EmptyState, ErrorBox, Modal, PageHeader, Spinner } from "@/components/ui";
 
 type ModalState =
@@ -25,6 +27,7 @@ export default function BudgetPage() {
   const [selected, setSelected] = useState<string>("");
   const [modal, setModal] = useState<ModalState>({ kind: "none" });
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editProject, setEditProject] = useState<Project | null>(null);
 
   useEffect(() => {
     if (!selected && projects.length) setSelected(projects[0].id);
@@ -34,10 +37,11 @@ export default function BudgetPage() {
     () =>
       projects.map((p) => {
         const rows = expenses.filter((e) => e.project_id === p.id);
-        const est = rows.reduce((s, e) => s + e.estimated_amount, 0);
+        const itemsEst = rows.reduce((s, e) => s + e.estimated_amount, 0);
+        const est = projectBudget(p.total_budget, itemsEst);
         const act = rows.reduce((s, e) => s + e.actual_amount, 0);
         const rate = disbursementRate(act, est);
-        return { project: p, rows, est, act, rate, level: budgetLevel(rate) };
+        return { project: p, rows, itemsEst, est, act, rate, level: budgetLevel(rate), hasTotal: Number(p.total_budget) > 0 };
       }),
     [projects, expenses]
   );
@@ -53,7 +57,7 @@ export default function BudgetPage() {
   }
 
   async function remove(e: Expense) {
-    if (!confirm(`Xoá hạng mục "${e.category}"?`)) return;
+    if (!confirm(`Xoá hạng mục "${e.item_name}"?`)) return;
     const { error } = await supabase.from("expenses").delete().eq("id", e.id);
     if (error) setActionError(error.message);
     else refresh();
@@ -74,7 +78,7 @@ export default function BudgetPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">Tổng quan ngân sách các dự án</h2>
           <p className="text-xs text-slate-500">
-            Tổng dự toán <b className="text-slate-800">{formatVND(grand.est)}</b> · Tổng thực chi{" "}
+            Tổng ngân sách <b className="text-slate-800">{formatVND(grand.est)}</b> · Tổng thực chi{" "}
             <b className="text-slate-800">{formatVND(grand.act)}</b> · Giải ngân{" "}
             <b className="text-slate-800">{formatPercent(disbursementRate(grand.act, grand.est))}</b>
           </p>
@@ -87,7 +91,7 @@ export default function BudgetPage() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="th">Dự án</th>
-                  <th className="th text-right">Dự toán</th>
+                  <th className="th text-right">Ngân sách</th>
                   <th className="th text-right">Thực chi</th>
                   <th className="th text-right">Còn lại</th>
                   <th className="th w-56">Tỷ lệ giải ngân</th>
@@ -147,16 +151,29 @@ export default function BudgetPage() {
               <span aria-hidden className="mt-0.5">{current.level === "over" ? "●" : "▲"}</span>
               <span>
                 {current.level === "over" ? (
-                  <><b>Vượt ngân sách!</b> Thực chi đã đạt {formatPercent(current.rate)} tổng dự toán (vượt {formatVND(current.act - current.est)}).</>
+                  <><b>Vượt ngân sách!</b> Thực chi đã đạt {formatPercent(current.rate)} tổng ngân sách dự án (vượt {formatVND(current.act - current.est)}).</>
                 ) : (
-                  <><b>Cảnh báo:</b> Thực chi đã đạt {formatPercent(current.rate)} tổng dự toán — vượt ngưỡng 80%.</>
+                  <><b>Cảnh báo:</b> Thực chi đã đạt {formatPercent(current.rate)} tổng ngân sách dự án — vượt ngưỡng 80%.</>
                 )}
               </span>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
-            <Stat label="Tổng dự toán" value={formatVND(current.est)} />
+            <Stat
+              label="Ngân sách dự án"
+              value={formatVND(current.est)}
+              badge={
+                <span className="text-[11px] text-slate-500">
+                  {current.hasTotal ? `Tổng dự toán hạng mục: ${formatVND(current.itemsEst)}` : "Tính theo tổng dự toán hạng mục"}
+                  {isAdmin && (
+                    <button className="ml-2 font-medium text-blue-600 hover:underline" onClick={() => setEditProject(current.project)}>
+                      Sửa
+                    </button>
+                  )}
+                </span>
+              }
+            />
             <Stat label="Tổng thực chi" value={formatVND(current.act)} />
             <Stat label="Còn lại" value={formatVND(current.est - current.act)} danger={current.act > current.est} />
             <Stat label="Tỷ lệ giải ngân" value={formatPercent(current.rate)} badge={<BudgetBadge level={current.level} />} />
@@ -185,7 +202,10 @@ export default function BudgetPage() {
                     const diff = e.estimated_amount - e.actual_amount;
                     return (
                       <tr key={e.id} className="hover:bg-slate-50">
-                        <td className="td font-medium text-slate-900">{e.category}</td>
+                        <td className="td font-medium text-slate-900">
+                          {e.item_name}
+                          {e.spent_date && <p className="text-[11px] font-normal text-slate-500">Ngày chi: {formatDate(e.spent_date)}</p>}
+                        </td>
                         <td className="td text-right tabular-nums">{formatVND(e.estimated_amount)}</td>
                         <td className="td text-right tabular-nums">{formatVND(e.actual_amount)}</td>
                         <td className={`td text-right tabular-nums ${diff < 0 ? "font-medium text-red-600" : "text-slate-600"}`}>
@@ -233,12 +253,12 @@ export default function BudgetPage() {
                 <tfoot className="bg-slate-50 font-semibold">
                   <tr>
                     <td className="td">Tổng cộng</td>
-                    <td className="td text-right tabular-nums">{formatVND(current.est)}</td>
+                    <td className="td text-right tabular-nums">{formatVND(current.itemsEst)}</td>
                     <td className="td text-right tabular-nums">{formatVND(current.act)}</td>
-                    <td className={`td text-right tabular-nums ${current.act > current.est ? "text-red-600" : ""}`}>
-                      {current.act > current.est ? "−" : ""}{formatVND(Math.abs(current.est - current.act))}
+                    <td className={`td text-right tabular-nums ${current.act > current.itemsEst ? "text-red-600" : ""}`}>
+                      {current.act > current.itemsEst ? "−" : ""}{formatVND(Math.abs(current.itemsEst - current.act))}
                     </td>
-                    <td className="td text-xs">{formatPercent(current.rate)}</td>
+                    <td className="td text-xs">{formatPercent(disbursementRate(current.act, current.itemsEst))}</td>
                     <td className="td" colSpan={3}><BudgetBadge level={current.level} /></td>
                   </tr>
                 </tfoot>
@@ -248,6 +268,7 @@ export default function BudgetPage() {
         </div>
       )}
 
+      <ProjectModal open={!!editProject} project={editProject} onClose={() => setEditProject(null)} />
       <ExpenseModal state={modal} projectId={selected} onClose={() => setModal({ kind: "none" })} />
     </div>
   );
@@ -271,6 +292,7 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
   const [actual, setActual] = useState("");
   const [addAmount, setAddAmount] = useState("");
   const [note, setNote] = useState("");
+  const [spentDate, setSpentDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -278,15 +300,17 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
     setError(null);
     setAddAmount("");
     if (state.kind === "edit" || state.kind === "actual") {
-      setCategory(state.expense.category);
+      setCategory(state.expense.item_name);
       setEstimated(String(state.expense.estimated_amount));
       setActual(String(state.expense.actual_amount));
       setNote(state.expense.note ?? "");
+      setSpentDate(state.kind === "actual" ? todayISO() : state.expense.spent_date?.slice(0, 10) ?? "");
     } else {
       setCategory("");
       setEstimated("");
       setActual("");
       setNote("");
+      setSpentDate(todayISO());
     }
   }, [state]);
 
@@ -301,8 +325,8 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
     if (state.kind === "new") {
       if (!category.trim()) return setError("Vui lòng nhập tên hạng mục.");
       const payload: Partial<Expense> = isAdmin
-        ? { project_id: projectId, category: category.trim(), estimated_amount: toNum(estimated), actual_amount: toNum(actual), note: note.trim() || null }
-        : { project_id: projectId, category: category.trim(), estimated_amount: 0, actual_amount: toNum(actual), approved: false, note: note.trim() || null };
+        ? { project_id: projectId, item_name: category.trim(), estimated_amount: toNum(estimated), actual_amount: toNum(actual), note: note.trim() || null, spent_date: spentDate || null }
+        : { project_id: projectId, item_name: category.trim(), estimated_amount: 0, actual_amount: toNum(actual), approved: false, note: note.trim() || null, spent_date: spentDate || null };
       if (toNum(estimated) < 0 || toNum(actual) < 0) return setError("Số tiền không được âm.");
       setBusy(true);
       res = await supabase.from("expenses").insert(payload);
@@ -311,13 +335,13 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
       setBusy(true);
       res = await supabase
         .from("expenses")
-        .update({ category: category.trim(), estimated_amount: toNum(estimated), actual_amount: toNum(actual), note: note.trim() || null })
+        .update({ item_name: category.trim(), estimated_amount: toNum(estimated), actual_amount: toNum(actual), note: note.trim() || null, spent_date: spentDate || null })
         .eq("id", state.expense.id);
     } else {
       const total = addAmount ? state.expense.actual_amount + toNum(addAmount) : toNum(actual);
       if (total < 0) return setError("Thực chi không được âm.");
       setBusy(true);
-      res = await supabase.from("expenses").update({ actual_amount: total, note: note.trim() || null }).eq("id", state.expense.id);
+      res = await supabase.from("expenses").update({ actual_amount: total, note: note.trim() || null, spent_date: spentDate || null }).eq("id", state.expense.id);
     }
     setBusy(false);
     if (res.error) return setError(errorMessage(res.error));
@@ -326,7 +350,7 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
   }
 
   const title =
-    state.kind === "new" ? (isAdmin ? "Thêm hạng mục dự toán" : "Nhập chi phí phát sinh") : state.kind === "edit" ? "Sửa hạng mục ngân sách" : `Nhập thực chi: ${state.expense.category}`;
+    state.kind === "new" ? (isAdmin ? "Thêm hạng mục dự toán" : "Nhập chi phí phát sinh") : state.kind === "edit" ? "Sửa hạng mục ngân sách" : `Nhập thực chi: ${state.expense.item_name}`;
 
   return (
     <Modal
@@ -377,6 +401,10 @@ function ExpenseModal({ state, projectId, onClose }: { state: ModalState; projec
             <input className="input" inputMode="numeric" value={actual} onChange={(e) => setActual(e.target.value)} />
           </div>
         )}
+        <div>
+          <label className="label">Ngày chi</label>
+          <input type="date" className="input" value={spentDate} onChange={(e) => setSpentDate(e.target.value)} />
+        </div>
         <div>
           <label className="label">Ghi chú</label>
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />

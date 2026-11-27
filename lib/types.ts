@@ -15,6 +15,7 @@ export interface Project {
   start_date: string | null;
   end_date: string | null;
   status: string | null;
+  total_budget: number | null;
   created_at?: string;
 }
 
@@ -31,7 +32,9 @@ export interface Task {
 export interface Expense {
   id: string;
   project_id: string;
-  category: string;
+  item_name: string;
+  task_id: string | null;
+  spent_date: string | null;
   estimated_amount: number;
   actual_amount: number;
   approved: boolean | null;

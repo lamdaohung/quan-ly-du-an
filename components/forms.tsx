@@ -5,10 +5,10 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useData } from "@/lib/data-context";
 import type { Project, Task } from "@/lib/types";
-import { clampProgress, errorMessage, formatDate, isOverdue } from "@/lib/format";
+import { clampProgress, errorMessage, formatDate, formatVND, isOverdue } from "@/lib/format";
 import { ErrorBox, Modal } from "./ui";
 
-const PROJECT_STATUSES = ["Lên kế hoạch", "Đang thực hiện", "Tạm dừng", "Hoàn thành"];
+const PROJECT_STATUSES = ["Lên kế hoạch", "Đang triển khai", "Tạm dừng", "Hoàn thành"];
 
 /* ------------------------------------------------------------------ */
 /*  Dự án: chỉ Admin được tạo / sửa timeline / xoá                     */
@@ -24,7 +24,7 @@ export function ProjectModal({
 }) {
   const { isAdmin } = useAuth();
   const { refresh } = useData();
-  const [form, setForm] = useState({ name: "", description: "", start_date: "", end_date: "", status: "Đang thực hiện" });
+  const [form, setForm] = useState({ name: "", description: "", start_date: "", end_date: "", status: "Đang triển khai", total_budget: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +36,8 @@ export function ProjectModal({
       description: project?.description ?? "",
       start_date: project?.start_date?.slice(0, 10) ?? "",
       end_date: project?.end_date?.slice(0, 10) ?? "",
-      status: project?.status ?? "Đang thực hiện",
+      status: project?.status ?? "Đang triển khai",
+      total_budget: project?.total_budget ? String(project.total_budget) : "",
     });
   }, [open, project]);
 
@@ -44,16 +45,18 @@ export function ProjectModal({
 
   async function save() {
     if (!form.name.trim()) return setError("Vui lòng nhập tên dự án.");
-    if (form.start_date && form.end_date && form.end_date < form.start_date)
-      return setError("Ngày kết thúc phải sau ngày bắt đầu.");
+    if (!form.start_date || !form.end_date) return setError("Vui lòng nhập ngày bắt đầu và ngày kết thúc.");
+    if (form.end_date < form.start_date) return setError("Ngày kết thúc phải sau ngày bắt đầu.");
+    const budget = Number(form.total_budget.replace(/[^\d]/g, "")) || 0;
     setBusy(true);
     setError(null);
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
-      start_date: form.start_date || null,
-      end_date: form.end_date || null,
+      start_date: form.start_date,
+      end_date: form.end_date,
       status: form.status,
+      total_budget: budget,
     };
     const { error } = project
       ? await supabase.from("projects").update(payload).eq("id", project.id)
@@ -108,13 +111,27 @@ export function ProjectModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">Ngày bắt đầu</label>
+            <label className="label">Ngày bắt đầu *</label>
             <input type="date" className="input" value={form.start_date} onChange={set("start_date")} disabled={readOnly} />
           </div>
           <div>
-            <label className="label">Ngày kết thúc</label>
+            <label className="label">Ngày kết thúc *</label>
             <input type="date" className="input" value={form.end_date} onChange={set("end_date")} disabled={readOnly} />
           </div>
+        </div>
+        <div>
+          <label className="label">Tổng ngân sách được duyệt (VNĐ)</label>
+          <input
+            className="input"
+            inputMode="numeric"
+            placeholder="Để trống = tính theo tổng dự toán các hạng mục"
+            value={form.total_budget}
+            onChange={set("total_budget")}
+            disabled={readOnly}
+          />
+          {Number(form.total_budget.replace(/[^\d]/g, "")) > 0 && (
+            <p className="mt-1 text-xs text-slate-500">{formatVND(Number(form.total_budget.replace(/[^\d]/g, "")))}</p>
+          )}
         </div>
         <div>
           <label className="label">Trạng thái</label>
@@ -170,14 +187,14 @@ export function TaskModal({
     if (canEditAll) {
       if (!form.title.trim()) return setError("Vui lòng nhập tên đầu việc.");
       if (!form.project_id) return setError("Vui lòng chọn dự án.");
-      if (form.start_date && form.due_date && form.due_date < form.start_date)
-        return setError("Hạn hoàn thành phải sau ngày bắt đầu.");
+      if (!form.start_date || !form.due_date) return setError("Vui lòng nhập ngày bắt đầu và hạn hoàn thành.");
+      if (form.due_date < form.start_date) return setError("Hạn hoàn thành phải sau ngày bắt đầu.");
       payload = {
         title: form.title.trim(),
         project_id: form.project_id,
         assignee_id: form.assignee_id || null,
-        start_date: form.start_date || null,
-        due_date: form.due_date || null,
+        start_date: form.start_date,
+        due_date: form.due_date,
         progress: clampProgress(form.progress),
       };
     } else {
@@ -265,11 +282,11 @@ export function TaskModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label">Ngày bắt đầu</label>
+            <label className="label">Ngày bắt đầu *</label>
             <input type="date" className="input" value={form.start_date} onChange={set("start_date")} disabled={!canEditAll} />
           </div>
           <div>
-            <label className="label">Hạn hoàn thành (due date)</label>
+            <label className="label">Hạn hoàn thành (due date) *</label>
             <input type="date" className="input" value={form.due_date} onChange={set("due_date")} disabled={!canEditAll} />
           </div>
         </div>
