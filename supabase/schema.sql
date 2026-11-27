@@ -72,6 +72,17 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- =====================================================================
+--  Cấp quyền truy cập bảng cho người dùng đã đăng nhập
+--  (project Supabase mới không tự cấp cho bảng tạo bằng SQL;
+--   RLS bên dưới mới là lớp giới hạn Admin/Member)
+-- =====================================================================
+grant usage on schema public to authenticated;
+grant select, insert, update, delete
+  on public.projects, public.members, public.tasks, public.expenses
+  to authenticated;
+grant execute on function public.is_admin(), public.current_member_id() to authenticated;
+
+-- =====================================================================
 --  RLS
 -- =====================================================================
 alter table public.members  enable row level security;
